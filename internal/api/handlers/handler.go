@@ -264,11 +264,8 @@ func (h *Handler) PullRequestReassign(c *gin.Context) {
 		return
 	}
 
-	response := h.prToResponse(pr)
-	response["replaced_by"] = newReviewerID
-
 	c.JSON(http.StatusOK, gin.H{
-		"pr":          response,
+		"pr":          h.prToResponse(pr),
 		"replaced_by": newReviewerID,
 	})
 }

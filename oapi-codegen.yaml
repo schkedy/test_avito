@@ -1,0 +1,8 @@
+# oapi-codegen configuration for server code generation
+package: api
+generate:
+  models: true
+  gin-server: false
+  strict-server: false
+  embedded-spec: false
+output: internal/api/generated.go

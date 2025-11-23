@@ -1,0 +1,718 @@
+openapi: 3.0.3
+info:
+  title: PR Reviewer Assignment Service (Test Task, Fall 2025)
+  version: "1.0.0"
+  description: Сервис автоматического назначения ревьюверов для Pull Request
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+tags:
+  - name: Health
+  - name: Teams
+  - name: Users
+  - name: PullRequests
+  - name: Stats
+
+components:
+  parameters:
+    TeamNameQuery:
+      name: team_name
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Уникальное имя команды
+    UserIdQuery:
+      name: user_id
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Идентификатор пользователя
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: BAD_REQUEST
+              message: invalid request format
+    UnsupportedMediaType:
+      description: Неподдерживаемый тип контента
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNSUPPORTED_MEDIA_TYPE
+              message: content-type must be application/json
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: internal server error
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - PR_EXISTS
+                - PR_MERGED
+                - NOT_ASSIGNED
+                - NO_CANDIDATE
+                - REVIEWERS_ASSIGNED
+                - NOT_FOUND
+                - BAD_REQUEST
+                - UNSUPPORTED_MEDIA_TYPE
+                - INTERNAL_ERROR
+            message:
+              type: string
+      example:
+        error:
+          code: NOT_FOUND
+          message: resource not found
+    TeamMember:
+      type: object
+      required: [ user_id, username, is_active ]
+      properties:
+        user_id:
+          type: string
+        username:
+          type: string
+        is_active:
+          type: boolean
+    Team:
+      type: object
+      required: [ team_name, members]
+      properties:
+        team_name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMember'
+    User:
+      type: object
+      required: [ user_id, username, team_name, is_active ]
+      properties:
+        user_id:
+          type: string
+        username:
+          type: string
+        team_name:
+          type: string
+        is_active:
+          type: boolean
+    ShortUser:
+      type: object
+      required: [ user_id ]
+      properties:
+        user_id:
+          type: string
+    PullRequest:
+      type: object
+      required: [ pull_request_id, pull_request_name, author_id, status, assigned_reviewers]
+      properties:
+        pull_request_id:
+          type: string
+        pull_request_name:
+          type: string
+        author_id:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, MERGED]
+        assigned_reviewers:
+          type: array
+          items:
+            type: string
+          description: user_id назначенных ревьюверов (0..2)
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        mergedAt:
+          type: string
+          format: date-time
+          nullable: true
+    PullRequestShort:
+      type: object
+      required: [ pull_request_id, pull_request_name, author_id, status]
+      properties:
+        pull_request_id:
+          type: string
+        pull_request_name:
+          type: string
+        author_id:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, MERGED]
+    Stats:
+      type: object
+      properties:
+        total_prs:
+          type: integer
+          description: Общее количество PR
+        open_prs:
+          type: integer
+          description: Количество открытых PR
+        merged_prs:
+          type: integer
+          description: Количество смерженных PR
+        total_teams:
+          type: integer
+          description: Общее количество команд
+        total_users:
+          type: integer
+          description: Общее количество пользователей
+        active_users:
+          type: integer
+          description: Количество активных пользователей
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+
+  /stats:
+    get:
+      tags: [Stats]
+      summary: Получить статистику сервиса
+      operationId: getStats
+      responses:
+        '200':
+          description: Статистика сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+              example:
+                total_prs: 150
+                open_prs: 45
+                merged_prs: 105
+                total_teams: 8
+                total_users: 42
+                active_users: 38
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /team/add:
+    post:
+      tags: [Teams]
+      summary: Создать команду с участниками (создаёт/обновляет пользователей)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Team'
+            example:
+              team_name: payments
+              members:
+                - user_id: u1
+                  username: Alice
+                  is_active: true
+                - user_id: u2
+                  username: Bob
+                  is_active: true
+      responses:
+        '200':
+          description: Команда обновлена (пользователи добавлены/обновлены)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    $ref: '#/components/schemas/Team'
+              example:
+                team:
+                  team_name: backend
+                  members:
+                    - user_id: u1
+                      username: Alice
+                      is_active: true
+                    - user_id: u2
+                      username: Bob
+                      is_active: true
+                    - user_id: u3
+                      username: Charlie
+                      is_active: true
+        '201':
+          description: Команда создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    $ref: '#/components/schemas/Team'
+              example:
+                team:
+                  team_name: backend
+                  members:
+                    - user_id: u1
+                      username: Alice
+                      is_active: true
+                    - user_id: u2
+                      username: Bob
+                      is_active: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /team/deactivate:
+    post:
+      tags: [Teams]
+      summary: Массово деактивировать всех пользователей команды
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ team_name ]
+              properties:
+                team_name:
+                  type: string
+            example:
+              team_name: backend
+      responses:
+        '200':
+          description: Все пользователи команды деактивированы
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    $ref: '#/components/schemas/Team'
+                  deactivated_count:
+                    type: integer
+                    description: Количество деактивированных пользователей
+              example:
+                team:
+                  team_name: backend
+                  members:
+                    - user_id: u1
+                      username: Alice
+                      is_active: false
+                    - user_id: u2
+                      username: Bob
+                      is_active: false
+                deactivated_count: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /team/get:
+    get:
+      tags: [Teams]
+      summary: Получить команду с участниками
+      parameters:
+        - $ref: '#/components/parameters/TeamNameQuery'
+      responses:
+        '200':
+          description: Объект команды
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+              example:
+                team_name: backend
+                members:
+                  - user_id: u1
+                    username: Alice
+                    is_active: true
+                  - user_id: u2
+                    username: Bob
+                    is_active: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Команда не найдена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/setIsActive:
+    post:
+      tags: [Users]
+      summary: Установить флаг активности пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ user_id, is_active ]
+              properties:
+                user_id:
+                  type: string
+                is_active:
+                  type: boolean
+            example:
+              user_id: u2
+              is_active: false
+      responses:
+        '200':
+          description: Обновлённый пользователь
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+              example:
+                user:
+                  user_id: u2
+                  username: Bob
+                  team_name: backend
+                  is_active: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pullRequest/assign:
+    post:
+      tags: [PullRequests]
+      summary: Назначить ревьюверов на существующий PR (рандомных или указанных)
+      description: |
+        Назначает ревьюверов на существующий PR. Если `reviewer_ids` не указаны,
+        назначаются случайные активные члены команды автора (до 2 ревьюверов).
+        Если указаны конкретные `reviewer_ids`, назначаются они.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pull_request_id ]
+              properties:
+                pull_request_id:
+                  type: string
+                  description: ID существующего PR
+                reviewer_ids:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ShortUser'
+                  description: Опциональный список ревьюверов для назначения (до 2)
+            examples:
+              random:
+                summary: Назначить случайных ревьюверов
+                value:
+                  pull_request_id: pr-1001
+              specific:
+                summary: Назначить конкретных ревьюверов
+                value:
+                  pull_request_id: pr-1001
+                  reviewer_ids:
+                    - user_id: u2
+                    - user_id: u3
+      responses:
+        '200':
+          description: Ревьюверы назначены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pr:
+                    $ref: '#/components/schemas/PullRequest'
+              example:
+                pr:
+                  pull_request_id: pr-1001
+                  pull_request_name: Add search
+                  author_id: u1
+                  status: OPEN
+                  assigned_reviewers: [u2, u3]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: PR не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Нарушение бизнес-правил
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                merged:
+                  summary: Нельзя назначать на MERGED PR
+                  value:
+                    error: { code: PR_MERGED, message: cannot assign reviewers to merged PR }
+                alreadyAssigned:
+                  summary: У PR уже есть ревьюверы
+                  value:
+                    error: { code: REVIEWERS_ASSIGNED, message: reviewers already assigned to this PR }
+                noCandidate:
+                  summary: Нет доступных кандидатов
+                  value:
+                    error: { code: NO_CANDIDATE, message: no active candidates available }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pullRequest/create:
+    post:
+      tags: [PullRequests]
+      summary: Создать PR и автоматически назначить до 2 ревьюверов из команды автора
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pull_request_id, pull_request_name, author_id ]
+              properties:
+                pull_request_id: { type: string }
+                pull_request_name: { type: string }
+                author_id: { type: string }
+            example:
+              pull_request_id: pr-1001
+              pull_request_name: Add search
+              author_id: u1
+      responses:
+        '201':
+          description: PR создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pr:
+                    $ref: '#/components/schemas/PullRequest'
+              example:
+                pr:
+                  pull_request_id: pr-1001
+                  pull_request_name: Add search
+                  author_id: u1
+                  status: OPEN
+                  assigned_reviewers: [u2, u3]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Автор/команда не найдены
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: PR уже существует
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: { code: PR_EXISTS, message: PR id already exists }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pullRequest/merge:
+    post:
+      tags: [PullRequests]
+      summary: Пометить PR как MERGED (идемпотентная операция)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pull_request_id ]
+              properties:
+                pull_request_id: { type: string }
+            example:
+              pull_request_id: pr-1001
+      responses:
+        '200':
+          description: PR в состоянии MERGED
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pr:
+                    $ref: '#/components/schemas/PullRequest'
+              example:
+                pr:
+                  pull_request_id: pr-1001
+                  pull_request_name: Add search
+                  author_id: u1
+                  status: MERGED
+                  assigned_reviewers: [u2, u3]
+                  mergedAt: 2025-10-24T12:34:56Z
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: PR не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pullRequest/reassign:
+    post:
+      tags: [PullRequests]
+      summary: Переназначить конкретного ревьювера на другого из его команды
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ pull_request_id, old_user_id ]
+              properties:
+                pull_request_id: { type: string }
+                old_user_id: { type: string }
+            example:
+              pull_request_id: pr-1001
+              old_user_id: u2
+      responses:
+        '200':
+          description: Переназначение выполнено
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pr, replaced_by]
+                properties:
+                  pr:
+                    $ref: '#/components/schemas/PullRequest'
+                  replaced_by:
+                    type: string
+                    description: user_id нового ревьювера
+              example:
+                pr:
+                  pull_request_id: pr-1001
+                  pull_request_name: Add search
+                  author_id: u1
+                  status: OPEN
+                  assigned_reviewers: [u3, u5]
+                replaced_by: u5
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: PR или пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Нарушение доменных правил переназначения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                merged:
+                  summary: Нельзя менять после MERGED
+                  value:
+                    error: { code: PR_MERGED, message: cannot reassign on merged PR }
+                notAssigned:
+                  summary: Пользователь не был назначен ревьювером
+                  value:
+                    error: { code: NOT_ASSIGNED, message: reviewer is not assigned to this PR }
+                noCandidate:
+                  summary: Нет доступных кандидатов
+                  value:
+                    error: { code: NO_CANDIDATE, message: no active replacement candidate in team }
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/getReview:
+    get:
+      tags: [Users]
+      summary: Получить PR'ы, где пользователь назначен ревьювером
+      parameters:
+        - $ref: '#/components/parameters/UserIdQuery'
+      responses:
+        '200':
+          description: Список PR'ов пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ user_id, pull_requests ]
+                properties:
+                  user_id:
+                    type: string
+                  pull_requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PullRequestShort'
+              example:
+                user_id: u2
+                pull_requests:
+                  - pull_request_id: pr-1001
+                    pull_request_name: Add search
+                    author_id: u1
+                    status: OPEN
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          $ref: '#/components/responses/InternalError'

@@ -33,7 +33,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${APP_EXTERNAL_PORT}:${APP_PORT}"
+      - "${SERVER_EXTERNAL_PORT}:${SERVER_PORT}"
     depends_on:
       postgres:
         condition: service_healthy

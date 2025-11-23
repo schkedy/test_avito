@@ -6,6 +6,8 @@ help:
 	@echo "  build                  - Build the application"
 	@echo "  run                    - Run the application locally"
 	@echo "  test                   - Run tests"
+	@echo "  test-e2e               - Run E2E tests (requires running service)"
+	@echo "  test-integration       - Run integration tests only"
 	@echo "  generate               - Generate code from OpenAPI spec and sqlc"
 	@echo "  sqlc                   - Generate database code from SQL queries"
 	@echo "  migrate                - Run database migrations (local DB)"
@@ -32,6 +34,18 @@ test:
 	@echo "Running tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
+
+# Run E2E tests (requires running service at http://localhost:8080)
+test-e2e:
+	@echo "Running E2E tests..."
+	@echo "Note: Service must be running at http://localhost:8080"
+	@echo "Run 'make docker-up' first if not running"
+	go test -v ./tests/e2e/...
+
+# Run integration tests only
+test-integration:
+	@echo "Running integration tests..."
+	go test -v ./tests/integration/...
 
 # Generate database code from SQL queries
 sqlc:

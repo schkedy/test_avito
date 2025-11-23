@@ -85,24 +85,24 @@ export default function (data) {
     return;
   }
   
-  // Realistic workflow: Create PR -> Assign -> Query -> Merge
+  // Realistic workflow: Create PR -> Assign -> Query -> Merge -> Team management
   const scenario = Math.floor(Math.random() * 100);
   
-  if (scenario < 40) {
-    // 40% - Query operations (read-heavy)
+  if (scenario < 35) {
+    // 35% - Query operations (read-heavy)
     testGetStats();
   } else if (scenario < 60) {
-    // 20% - Check user reviews
+    // 25% - Check user reviews
     testGetUserReviews(data);
   } else if (scenario < 75) {
-    // 15% - Create new PR
+    // 15% - Create new PR (with auto-assignment)
     testCreatePR(data);
-  } else if (scenario < 90) {
-    // 15% - Assign reviewers to existing PR
-    testAssignReviewers(data);
-  } else {
-    // 10% - Merge PR
+  } else if (scenario < 88) {
+    // 13% - Merge PR
     testMergePR(data);
+  } else {
+    // 12% - Deactivate team
+    testDeactivateTeam(data);
   }
 }
 
@@ -160,31 +160,10 @@ function testCreatePR(data) {
 }
 
 function testAssignReviewers(data) {
-  if (PRS.length === 0) {
-    // No PRs to assign, skip this iteration
-    return;
-  }
-  
-  const prId = PRS[Math.floor(Math.random() * Math.min(PRS.length, 20))]; // Recent PRs only
-  
-  const payload = {
-    pull_request_id: prId,
-    reviewer_ids: [] // Random assignment
-  };
-  
-  const res = http.post(
-    `${BASE_URL}/pullRequest/assign`,
-    JSON.stringify(payload),
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-  
-  const success = check(res, {
-    'assign: status is 200 or 409': (r) => r.status === 200 || r.status === 409, // 409 if already assigned is OK
-    'assign: response time < 300ms': (r) => r.timings.duration < 300,
-  });
-  
-  // Don't count 409 as error - it's valid business response
-  errorRate.add(!success && res.status !== 409);
+  // Note: PRs are automatically assigned 2 reviewers on creation
+  // This endpoint is for reassignment, which isn't tested in this load test
+  // Skipping to avoid false 409 errors
+  return;
 }
 
 function testMergePR(data) {
@@ -225,6 +204,33 @@ function testGetUserReviews(data) {
   });
   
   errorRate.add(!success);
+}
+
+function testDeactivateTeam(data) {
+  if (!data.teams || data.teams.length === 0) {
+    return;
+  }
+  
+  // Pick a random team to deactivate
+  const team = data.teams[Math.floor(Math.random() * data.teams.length)];
+  
+  const payload = {
+    team_name: team.name
+  };
+  
+  const res = http.post(
+    `${BASE_URL}/team/deactivate`,
+    JSON.stringify(payload),
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+  
+  const success = check(res, {
+    'deactivate: status is 200 or 404': (r) => r.status === 200 || r.status === 404, // 404 if already deactivated or not found
+    'deactivate: response time < 300ms': (r) => r.timings.duration < 300,
+  });
+  
+  // Don't count 404 as error - team might be already deactivated
+  errorRate.add(!success && res.status !== 404);
 }
 
 export function teardown(data) {

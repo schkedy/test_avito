@@ -250,7 +250,7 @@ func (h *Handler) PullRequestMerge(c *gin.Context) {
 func (h *Handler) PullRequestReassign(c *gin.Context) {
 	var req struct {
 		PullRequestID string `json:"pull_request_id" binding:"required"`
-		OldReviewerID string `json:"old_reviewer_id" binding:"required"`
+		OldUserID     string `json:"old_user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -258,7 +258,7 @@ func (h *Handler) PullRequestReassign(c *gin.Context) {
 		return
 	}
 
-	newReviewerID, pr, err := h.prService.ReassignReviewer(c.Request.Context(), req.PullRequestID, req.OldReviewerID)
+	newReviewerID, pr, err := h.prService.ReassignReviewer(c.Request.Context(), req.PullRequestID, req.OldUserID)
 	if err != nil {
 		h.handleError(c, err)
 		return

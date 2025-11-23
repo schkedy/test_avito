@@ -21,9 +21,6 @@ vendor/
 go.work
 .copilotignore
 
-# Environment variables (sensitive data)
-.env
-.env.local
 
 # IDE
 .idea/

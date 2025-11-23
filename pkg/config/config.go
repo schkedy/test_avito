@@ -62,23 +62,23 @@ func Load() (*Config, error) {
 
 	// Map environment variables to config keys
 	// Database
-	v.BindEnv("database.host", "POSTGRES_HOST")
-	v.BindEnv("database.port", "POSTGRES_PORT")
-	v.BindEnv("database.user", "POSTGRES_USER")
-	v.BindEnv("database.password", "POSTGRES_PASSWORD")
-	v.BindEnv("database.dbname", "POSTGRES_DB")
-	v.BindEnv("database.sslmode", "POSTGRES_SSLMODE")
+	_ = v.BindEnv("database.host", "POSTGRES_HOST")
+	_ = v.BindEnv("database.port", "POSTGRES_PORT")
+	_ = v.BindEnv("database.user", "POSTGRES_USER")
+	_ = v.BindEnv("database.password", "POSTGRES_PASSWORD")
+	_ = v.BindEnv("database.dbname", "POSTGRES_DB")
+	_ = v.BindEnv("database.sslmode", "POSTGRES_SSLMODE")
 
 	// Server
-	v.BindEnv("server.port", "SERVER_PORT")
-	v.BindEnv("server.host", "SERVER_HOST")
-	v.BindEnv("server.read_timeout", "SERVER_READ_TIMEOUT")
-	v.BindEnv("server.write_timeout", "SERVER_WRITE_TIMEOUT")
-	v.BindEnv("server.shutdown_timeout", "SERVER_SHUTDOWN_TIMEOUT")
+	_ = v.BindEnv("server.port", "SERVER_PORT")
+	_ = v.BindEnv("server.host", "SERVER_HOST")
+	_ = v.BindEnv("server.read_timeout", "SERVER_READ_TIMEOUT")
+	_ = v.BindEnv("server.write_timeout", "SERVER_WRITE_TIMEOUT")
+	_ = v.BindEnv("server.shutdown_timeout", "SERVER_SHUTDOWN_TIMEOUT")
 
 	// Log
-	v.BindEnv("log.level", "LOG_LEVEL")
-	v.BindEnv("log.format", "LOG_FORMAT")
+	_ = v.BindEnv("log.level", "LOG_LEVEL")
+	_ = v.BindEnv("log.format", "LOG_FORMAT")
 
 	v.AutomaticEnv()
 	v.SetEnvPrefix("APP")
